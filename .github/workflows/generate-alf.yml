@@ -1,0 +1,55 @@
+name: Generate Activation License File
+
+on:
+  workflow_dispatch:
+    inputs:
+      unity_editor_version:
+        description: 'Unity Editor Version'
+        required: true
+        default: '2022.1.12f1'
+
+jobs:
+  generate-activation-license-file:
+    name: Generate activation license file
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: ✅ Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: 🐳 Run the build process with Docker
+        uses: addnab/docker-run-action@v3
+        with:
+          image: unityci/editor:${{ github.event.inputs.unity_editor_version }}-base-1
+          # Mount a volume in a Docker container
+          options: -v ${{ github.workspace }}:/github
+          run: |
+            echo "--> 🔑 Create a license request file from the command line"
+            LICENSE_FILE=$( \
+            /opt/unity/Editor/Unity \
+            -nographics \
+            -batchmode \
+            -createManualActivationFile \
+            -logfile |\
+            grep 'Generating manual activation license file' |\
+            awk '{print $NF}')
+            
+            echo "--> 🔑 Move license file to '/github' directory"
+            mv $LICENSE_FILE /github
+            
+            echo "--> 📌 Set github action environment variable"
+            touch /github/env
+            echo LICENSE_FILE_NAME=$(basename "$LICENSE_FILE" .alf)_ALF >> /github/github_env_variable
+            echo LICENSE_FILE_RELATIVE_PATH=$LICENSE_FILE >> /github/github_env_variable
+            
+      - name: 📌 Set github action environment variable
+        run: |
+          cat github_env_variable >> $GITHUB_ENV
+                         
+      # Upload artifact (Unity_v20XX.X.XXXX.alf)
+      - name: 📦 Expose as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.LICENSE_FILE_NAME }}  # Unity_v20XX.X.XXXX_ALF
+          path: ${{ github.workspace }}${{ env.LICENSE_FILE_RELATIVE_PATH }}
+          retention-days: 1

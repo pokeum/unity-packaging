@@ -1,0 +1,76 @@
+name: Unity Packaging
+
+on:
+  workflow_dispatch:
+    inputs:
+      unity_editor_version:
+        description: 'Unity Editor Version'
+        required: true
+        default: '2022.1.12f1'
+      unity_package_name:
+        description: 'Unity Package Name'
+        required: true
+        default: 'mypackage-0.0.0'  # e.g. {PACKAGE_NAME}-{VERSION}
+        
+jobs:
+  unity-packaging:
+    name: Unity Packaging
+    runs-on: ubuntu-latest
+    
+    env:
+      UNITY_EDITOR_VERSION: ${{ github.event.inputs.unity_editor_version }}
+      UNITY_ULF: ${{ secrets.UNITY_ULF }}
+      
+      # UNITY_PROJECT_PATH: ${{ '.' }}
+      UNITY_PROJECT_PATH: ${{ 'myproject' }}
+      
+      UNITY_PACKAGE_NAME: ${{ github.event.inputs.unity_package_name }}
+    
+    steps:
+      - name: ✅ Checkout repository
+        uses: actions/checkout@v3
+        
+      - name: 🔑 Create Unity license file
+        run: |
+          echo $UNITY_ULF | base64 --decode > unity_license.ulf
+          
+      - name: 🐳 Run the build process with Docker
+        uses: addnab/docker-run-action@v3
+        with:
+          image: unityci/editor:${{ env.UNITY_EDITOR_VERSION }}-base-1
+          options: |
+            -v ${{ github.workspace }}:/github 
+            -e UNITY_PROJECT_PATH=${{ env.UNITY_PROJECT_PATH }} 
+            -e UNITY_PACKAGE_NAME=${{ env.UNITY_PACKAGE_NAME }}
+          run: |
+            echo "--> 🔑 Activate license from the command line"
+            /opt/unity/Editor/Unity \
+            -nographics \
+            -batchmode \
+            -manualLicenseFile "/github/unity_license.ulf" \
+            -logfile
+            
+            echo "--> 📦 Export a package (export asset path: .unitypackage_exports)"
+            xvfb-run -a --server-args="-screen 0 1024x768x24" \
+            /opt/unity/Editor/Unity \
+            -batchmode \
+            -quit \
+            -nographics \
+            -logfile \
+            -projectPath /github/$UNITY_PROJECT_PATH \
+            -exportPackage $(sed '/^#/d; /^$/d;' /github/.unitypackage_exports) \
+            $UNITY_PACKAGE_NAME.unitypackage
+                                                             
+      # Upload artifact
+      # This can be replaced with code to upload artifact to AWS S3...
+      - name: 📦 Expose as artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ env.UNITY_PACKAGE_NAME }}
+          # Relative pathing '.' and '..' is not allowed.
+          path: ${{ github.workspace }}/${{
+              env.UNITY_PROJECT_PATH == '.' &&
+              format('{0}.unitypackage', env.UNITY_PACKAGE_NAME) ||
+              format('{0}/{1}.unitypackage', env.UNITY_PROJECT_PATH, env.UNITY_PACKAGE_NAME)
+            }}
+          retention-days: 3

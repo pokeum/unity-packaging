@@ -1,0 +1,7 @@
+# Single-line comments
+
+# Include Script
+Assets/MyPackage/Include
+
+# Include Scene
+Assets/Scenes/IncludeScene.unity

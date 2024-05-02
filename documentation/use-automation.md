@@ -7,7 +7,7 @@
 
 3. Use that .alf file to generate a Unity license file (.ulf) from Unity
 
-    [Generate a Unity license file](./documentation/generate-ulf.md)
+    [Generate a Unity license file](./generate-ulf.md)
 
 4. Encode a download license file and save it to a repository's secrets (`UNITY_ULF`)
 
